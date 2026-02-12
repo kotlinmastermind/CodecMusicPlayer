@@ -21,8 +21,7 @@ import android.support.v4.media.session.PlaybackStateCompat
 
 import android.content.BroadcastReceiver
 import android.content.IntentFilter
-
-
+import android.support.v4.media.MediaMetadataCompat
 
 
 class MusicPlaybackService : Service() {
@@ -161,6 +160,10 @@ class MusicPlaybackService : Service() {
 
         when (intent?.action) {
             NotificationAction.ACTION_PLAY -> {
+
+                updateMetadata("My Song", "Unknown Artist")
+
+
                 if (trackUri != null) {
 
                     registerReceiver(
@@ -261,49 +264,71 @@ class MusicPlaybackService : Service() {
 
     private fun updatePlaybackState(isPlaying: Boolean) {
 
+        val actions = PlaybackStateCompat.ACTION_PLAY or
+                PlaybackStateCompat.ACTION_PAUSE or
+                PlaybackStateCompat.ACTION_PLAY_PAUSE or
+                PlaybackStateCompat.ACTION_STOP or
+                PlaybackStateCompat.ACTION_SEEK_TO
+
         val state = if (isPlaying)
             PlaybackStateCompat.STATE_PLAYING
         else
             PlaybackStateCompat.STATE_PAUSED
 
         val playbackState = PlaybackStateCompat.Builder()
-            .setActions(
-                PlaybackStateCompat.ACTION_PLAY or
-                        PlaybackStateCompat.ACTION_PAUSE or
-                        PlaybackStateCompat.ACTION_STOP
-            )
+            .setActions(actions)
             .setState(state, PlaybackStateCompat.PLAYBACK_POSITION_UNKNOWN, 1f)
             .build()
 
         mediaSession.setPlaybackState(playbackState)
     }
 
+
     private fun initMediaSession() {
 
-        mediaSession = MediaSessionCompat(this, "CodecMusicSession").apply {
+        mediaSession = MediaSessionCompat(this, "CodecMusicSession")
 
-            setCallback(object : MediaSessionCompat.Callback() {
+        mediaSession.setFlags(
+            MediaSessionCompat.FLAG_HANDLES_MEDIA_BUTTONS or
+                    MediaSessionCompat.FLAG_HANDLES_TRANSPORT_CONTROLS
+        )
 
-                override fun onPlay() {
-                    requestAudioFocus()
-                    engine.handleCommand(PlayerCommand.Resume)
-                }
+        mediaSession.setCallback(object : MediaSessionCompat.Callback() {
 
-                override fun onPause() {
-                    engine.handleCommand(PlayerCommand.Pause)
-                }
+            override fun onPlay() {
+                requestAudioFocus()
+                engine.handleCommand(PlayerCommand.Resume)
+            }
 
-                override fun onStop() {
-                    engine.handleCommand(PlayerCommand.Stop)
-                    abandonAudioFocus()
-                    stopSelf()
-                }
-            })
+            override fun onPause() {
+                engine.handleCommand(PlayerCommand.Pause)
+            }
 
-            isActive = true
-        }
+            override fun onStop() {
+                engine.handleCommand(PlayerCommand.Stop)
+                abandonAudioFocus()
+                stopSelf()
+            }
+
+            override fun onSeekTo(pos: Long) {
+                engine.handleCommand(PlayerCommand.Seek(pos))
+            }
+        })
+
+        mediaSession.isActive = true
     }
 
+
+
+    private fun updateMetadata(title: String, artist: String) {
+
+        val metadata = MediaMetadataCompat.Builder()
+            .putString(MediaMetadataCompat.METADATA_KEY_TITLE, title)
+            .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, artist)
+            .build()
+
+        mediaSession.setMetadata(metadata)
+    }
 
     override fun onDestroy() {
 
