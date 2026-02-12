@@ -6,6 +6,9 @@ import android.media.MediaFormat
 import android.net.Uri
 import android.util.Log
 
+import java.nio.ByteBuffer
+
+
 class AudioExtractor(
     private val context: Context
 ) {
@@ -49,12 +52,10 @@ class AudioExtractor(
     /**
      * Read encoded frame into buffer
      */
-    fun readSampleData(buffer: ByteArray): Int {
-        return extractor.readSampleData(
-            java.nio.ByteBuffer.wrap(buffer),
-            0
-        )
+    fun readSampleData(buffer: ByteBuffer): Int {
+        return extractor.readSampleData(buffer, 0)
     }
+
 
     /**
      * Advance to next frame

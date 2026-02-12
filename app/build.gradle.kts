@@ -54,6 +54,7 @@ dependencies {
 
     // MediaSession
     implementation ("androidx.media:media:1.7.0")
+    //implementation("androidx.media:media:1.6.0")
 
     // Coroutines
     implementation ("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
