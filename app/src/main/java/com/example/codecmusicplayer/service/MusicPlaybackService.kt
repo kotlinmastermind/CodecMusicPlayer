@@ -19,6 +19,11 @@ import android.net.Uri
 import android.support.v4.media.session.MediaSessionCompat
 import android.support.v4.media.session.PlaybackStateCompat
 
+import android.content.BroadcastReceiver
+import android.content.IntentFilter
+
+
+
 
 class MusicPlaybackService : Service() {
 
@@ -33,6 +38,15 @@ class MusicPlaybackService : Service() {
 
     private lateinit var audioManager: AudioManager
     private var audioFocusRequest: AudioFocusRequest? = null
+
+    private val noisyReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (AudioManager.ACTION_AUDIO_BECOMING_NOISY == intent?.action) {
+                engine.handleCommand(PlayerCommand.Pause)
+            }
+        }
+    }
+
 
 
 
@@ -149,6 +163,11 @@ class MusicPlaybackService : Service() {
             NotificationAction.ACTION_PLAY -> {
                 if (trackUri != null) {
 
+                    registerReceiver(
+                        noisyReceiver,
+                        IntentFilter(AudioManager.ACTION_AUDIO_BECOMING_NOISY)
+                    )
+
                     if (requestAudioFocus()) {
                         engine.handleCommand(PlayerCommand.Play(trackUri))
                     }
@@ -168,6 +187,10 @@ class MusicPlaybackService : Service() {
                     stopForeground(STOP_FOREGROUND_REMOVE)
                 else
                     stopForeground(true)
+
+                try {
+                    unregisterReceiver(noisyReceiver)
+                } catch (e: Exception) { }
 
                 stopSelf()
             }
@@ -283,6 +306,10 @@ class MusicPlaybackService : Service() {
 
 
     override fun onDestroy() {
+
+        try {
+            unregisterReceiver(noisyReceiver)
+        } catch (e: Exception) { }
         serviceJob.cancel() // 🔥 Prevent coroutine leaks
         super.onDestroy()
         Log.e("SERVICE_STAGE8", "Service DESTROYED")
