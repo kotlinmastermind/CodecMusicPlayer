@@ -4,14 +4,17 @@ import android.app.*
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import android.support.v4.media.session.MediaSessionCompat
 import androidx.core.app.NotificationCompat
 import com.example.codecmusicplayer.R
 import com.example.codecmusicplayer.engine.PlayerState
 import com.example.codecmusicplayer.service.MusicPlaybackService
 
 
+
 class PlayerNotification(
-    private val context: Context
+    private val context: Context,
+    private val sessionToken: MediaSessionCompat.Token
 ) {
 
     companion object {
@@ -56,9 +59,13 @@ class PlayerNotification(
             .setContentText(mapStateText(state))
             .setOngoing(isPlaying)
             .addAction(playPauseAction)
+
             .setStyle(
                 androidx.media.app.NotificationCompat.MediaStyle()
+                    .setMediaSession(sessionToken)
+                    .setShowActionsInCompactView(0, 1)
             )
+
             .build()
     }
 

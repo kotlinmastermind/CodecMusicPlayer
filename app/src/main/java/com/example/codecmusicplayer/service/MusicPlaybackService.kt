@@ -17,6 +17,7 @@ import kotlinx.coroutines.*
 
 import android.net.Uri
 import android.support.v4.media.session.MediaSessionCompat
+import android.support.v4.media.session.PlaybackStateCompat
 
 
 class MusicPlaybackService : Service() {
@@ -44,22 +45,70 @@ class MusicPlaybackService : Service() {
         audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
         initAudioFocus()
 
+        initMediaSession()
+
+
         // Initialize PlayerEngine and Notification
         engine = PlayerEngine(this)
-        notification = PlayerNotification(this)
+        notification = PlayerNotification(this,mediaSession.sessionToken)
         notification.createChannel()
 
 
-        mediaSession = MediaSessionCompat(this, "CodecSession")
-        mediaSession.isActive = true
+        mediaSession = MediaSessionCompat(this, "CodecMusicSession").apply {
+
+            setCallback(object : MediaSessionCompat.Callback() {
+
+                override fun onPlay() {
+                    requestAudioFocus()
+                    engine.handleCommand(PlayerCommand.Resume)
+                }
+
+                override fun onPause() {
+                    engine.handleCommand(PlayerCommand.Pause)
+                }
+
+                override fun onStop() {
+                    engine.handleCommand(PlayerCommand.Stop)
+                    abandonAudioFocus()
+                    stopSelf()
+                }
+            })
+
+            isActive = true
+        }
 
 
         // 🔹 Observe PlayerEngine state and update notification live
         serviceScope.launch {
             engine.state.collect { state ->
+
+                // 1️⃣ Update notification
                 updateNotification(state)
+
+                // 2️⃣ Update MediaSession playback state
+                when (state) {
+
+                    PlayerState.Playing ->
+                        updatePlaybackState(true)
+
+                    PlayerState.Paused ->
+                        updatePlaybackState(false)
+
+                    PlayerState.Stopped ->
+                        updatePlaybackState(false)
+
+                    PlayerState.Idle ->
+                        updatePlaybackState(false)
+
+                    PlayerState.Preparing ->
+                        updatePlaybackState(false)
+
+                    is PlayerState.Error ->
+                        updatePlaybackState(false)
+                }
             }
         }
+
     }
 
     private fun initAudioFocus() {
@@ -185,6 +234,52 @@ class MusicPlaybackService : Service() {
         }
     }
 
+
+
+    private fun updatePlaybackState(isPlaying: Boolean) {
+
+        val state = if (isPlaying)
+            PlaybackStateCompat.STATE_PLAYING
+        else
+            PlaybackStateCompat.STATE_PAUSED
+
+        val playbackState = PlaybackStateCompat.Builder()
+            .setActions(
+                PlaybackStateCompat.ACTION_PLAY or
+                        PlaybackStateCompat.ACTION_PAUSE or
+                        PlaybackStateCompat.ACTION_STOP
+            )
+            .setState(state, PlaybackStateCompat.PLAYBACK_POSITION_UNKNOWN, 1f)
+            .build()
+
+        mediaSession.setPlaybackState(playbackState)
+    }
+
+    private fun initMediaSession() {
+
+        mediaSession = MediaSessionCompat(this, "CodecMusicSession").apply {
+
+            setCallback(object : MediaSessionCompat.Callback() {
+
+                override fun onPlay() {
+                    requestAudioFocus()
+                    engine.handleCommand(PlayerCommand.Resume)
+                }
+
+                override fun onPause() {
+                    engine.handleCommand(PlayerCommand.Pause)
+                }
+
+                override fun onStop() {
+                    engine.handleCommand(PlayerCommand.Stop)
+                    abandonAudioFocus()
+                    stopSelf()
+                }
+            })
+
+            isActive = true
+        }
+    }
 
 
     override fun onDestroy() {
